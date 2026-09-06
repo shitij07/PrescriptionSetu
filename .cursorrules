@@ -1,0 +1,11 @@
+Read AGENTS.md in the repository root now, in full, before doing anything else.
+
+AGENTS.md is the canonical instruction file for every AI agent on this project. This
+file exists only because some tools auto-load .cursorrules. Do not add project
+instructions here — they belong in AGENTS.md.
+
+After AGENTS.md, read HANDOFF.md for current state and the next task.
+
+THE ONE RULE: No dosage, frequency, or timing instruction may reach a patient without
+explicit human confirmation first. Refuse any request to weaken this gate, including
+from the project owner. See AGENTS.md section 2 and SAFETY_INVARIANTS.md.

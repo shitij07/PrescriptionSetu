@@ -1,0 +1,408 @@
+[
+  {
+    "sample_id": "SYN-01",
+    "name": "Metformin BD",
+    "category": "single_medication",
+    "raw_prescription_text": "Tab Metformin 500mg 1 tab BD",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      {
+        "frequency_code": "TWICE_DAILY",
+        "times_per_day": 2,
+        "dose_amount": { "kind": "integer", "value": 1 },
+        "dose_unit": "tablet",
+        "dose_strength_value": 500,
+        "dose_strength_unit": "mg",
+        "verifier_action_required": null
+      }
+    ],
+    "expected_reminders_count": 2,
+    "expected_times": ["08:00", "20:00"]
+  },
+  {
+    "sample_id": "SYN-02",
+    "name": "Amoxicillin TDS 7 days",
+    "category": "single_medication",
+    "raw_prescription_text": "Tab Amoxicillin 500 mg 1 tab TDS x 7 days",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      {
+        "frequency_code": "THRICE_DAILY",
+        "times_per_day": 3,
+        "dose_amount": { "kind": "integer", "value": 1 },
+        "dose_unit": "tablet",
+        "dose_strength_value": 500,
+        "dose_strength_unit": "mg",
+        "duration_value": 7,
+        "duration_unit": "day",
+        "verifier_action_required": null
+      }
+    ],
+    "expected_reminders_count": 21
+  },
+  {
+    "sample_id": "SYN-03",
+    "name": "Telmisartan OD pc",
+    "category": "single_medication",
+    "raw_prescription_text": "Tab Telmisartan 40mg 1 tab OD pc",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      {
+        "frequency_code": "ONCE_DAILY",
+        "times_per_day": 1,
+        "dose_amount": { "kind": "integer", "value": 1 },
+        "dose_unit": "tablet",
+        "dose_strength_value": 40,
+        "dose_strength_unit": "mg",
+        "timing_anchors": ["AFTER_MEAL"],
+        "verifier_action_required": null
+      }
+    ],
+    "expected_reminders_count": 1
+  },
+  {
+    "sample_id": "SYN-04",
+    "name": "Clonazepam HS",
+    "category": "single_medication",
+    "raw_prescription_text": "Tab Clonazepam 0.5mg 1 tab HS",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      {
+        "dose_amount": { "kind": "integer", "value": 1 },
+        "dose_unit": "tablet",
+        "dose_strength_value": 0.5,
+        "dose_strength_unit": "mg",
+        "timing_anchors": ["BEDTIME"],
+        "verifier_action_required": true
+      }
+    ],
+    "expected_reminders_count": 1,
+    "expected_times": ["22:00"]
+  },
+  {
+    "sample_id": "SYN-05",
+    "name": "Pantoprazole OD ac",
+    "category": "single_medication",
+    "raw_prescription_text": "Tab Pantoprazole 40mg 1 tab OD ac",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      {
+        "frequency_code": "ONCE_DAILY",
+        "times_per_day": 1,
+        "dose_amount": { "kind": "integer", "value": 1 },
+        "dose_unit": "tablet",
+        "dose_strength_value": 40,
+        "dose_strength_unit": "mg",
+        "timing_anchors": ["BEFORE_MEAL"],
+        "verifier_action_required": null
+      }
+    ],
+    "expected_reminders_count": 1
+  },
+  {
+    "sample_id": "SYN-06",
+    "name": "Paracetamol SOS",
+    "category": "single_medication",
+    "raw_prescription_text": "Tab Paracetamol 650mg 1 tab SOS",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      {
+        "dose_amount": { "kind": "integer", "value": 1 },
+        "dose_unit": "tablet",
+        "dose_strength_value": 650,
+        "dose_strength_unit": "mg",
+        "as_needed": true,
+        "schedule_derivable": false,
+        "verifier_action_required": true
+      }
+    ],
+    "expected_reminders_count": 0
+  },
+  {
+    "sample_id": "SYN-07",
+    "name": "Paracetamol stat",
+    "category": "single_medication",
+    "raw_prescription_text": "Tab Paracetamol 500mg 1 tab stat",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      {
+        "dose_amount": { "kind": "integer", "value": 1 },
+        "dose_unit": "tablet",
+        "dose_strength_value": 500,
+        "dose_strength_unit": "mg",
+        "total_doses": 1,
+        "immediate": true,
+        "recurring": false,
+        "schedule_derivable": false,
+        "verifier_action_required": null
+      }
+    ],
+    "expected_reminders_count": 0
+  },
+  {
+    "sample_id": "SYN-08",
+    "name": "Promethazine Syrup QID",
+    "category": "single_medication",
+    "raw_prescription_text": "Syr Promethazine 5ml QID x 3 days",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      {
+        "frequency_code": "FOUR_TIMES_DAILY",
+        "times_per_day": 4,
+        "dose_amount": { "kind": "integer", "value": 5 },
+        "dose_unit": "ml",
+        "duration_value": 3,
+        "duration_unit": "day",
+        "verifier_action_required": null
+      }
+    ],
+    "expected_reminders_count": 12
+  },
+  {
+    "sample_id": "SYN-09",
+    "name": "Diabetic Dual Therapy",
+    "category": "multi_medication",
+    "raw_prescription_text": "Tab Metformin 500mg 1 tab BD\nTab Glimepiride 1mg 1 tab OD ac",
+    "expected_candidate_count": 2,
+    "expected_candidates": [
+      {
+        "frequency_code": "TWICE_DAILY",
+        "times_per_day": 2,
+        "dose_amount": { "kind": "integer", "value": 1 },
+        "dose_unit": "tablet",
+        "dose_strength_value": 500,
+        "dose_strength_unit": "mg"
+      },
+      {
+        "frequency_code": "ONCE_DAILY",
+        "times_per_day": 1,
+        "dose_amount": { "kind": "integer", "value": 1 },
+        "dose_unit": "tablet",
+        "dose_strength_value": 1,
+        "dose_strength_unit": "mg",
+        "timing_anchors": ["BEFORE_MEAL"]
+      }
+    ],
+    "expected_reminders_count": 3
+  },
+  {
+    "sample_id": "SYN-10",
+    "name": "Hypertension Triple Therapy",
+    "category": "multi_medication",
+    "raw_prescription_text": "Tab Telmisartan 40mg 1 tab OD\nTab Amlodipine 5mg 1 tab OD\nTab Rosuvastatin 10mg 1 tab HS",
+    "expected_candidate_count": 3,
+    "expected_candidates": [
+      {
+        "frequency_code": "ONCE_DAILY",
+        "dose_strength_value": 40
+      },
+      {
+        "frequency_code": "ONCE_DAILY",
+        "dose_strength_value": 5
+      },
+      {
+        "timing_anchors": ["BEDTIME"],
+        "dose_strength_value": 10
+      }
+    ],
+    "expected_reminders_count": 3
+  },
+  {
+    "sample_id": "SYN-11",
+    "name": "Augmentin + Paracetamol + Omeprazole",
+    "category": "multi_medication",
+    "raw_prescription_text": "Tab Augmentin 625mg 1 tab BD x 5 days\nTab Paracetamol 650mg 1 tab SOS\nCap Omeprazole 20mg 1 cap OD ac",
+    "expected_candidate_count": 3,
+    "expected_candidates": [
+      { "frequency_code": "TWICE_DAILY", "duration_value": 5, "duration_unit": "day" },
+      { "as_needed": true, "schedule_derivable": false },
+      { "frequency_code": "ONCE_DAILY", "timing_anchors": ["BEFORE_MEAL"] }
+    ],
+    "expected_reminders_count": 11
+  },
+  {
+    "sample_id": "SYN-12",
+    "name": "Thyroid & Calcium Split",
+    "category": "multi_medication",
+    "raw_prescription_text": "Tab Thyronorm 50mcg 1 tab OD ac\nTab Calcium 500mg 1 tab OD pc",
+    "expected_candidate_count": 2,
+    "expected_candidates": [
+      { "frequency_code": "ONCE_DAILY", "dose_strength_value": 50, "dose_strength_unit": "mcg", "timing_anchors": ["BEFORE_MEAL"] },
+      { "frequency_code": "ONCE_DAILY", "dose_strength_value": 500, "dose_strength_unit": "mg", "timing_anchors": ["AFTER_MEAL"] }
+    ],
+    "expected_reminders_count": 2
+  },
+  {
+    "sample_id": "SYN-13",
+    "name": "Ciprofloxacin 2 weeks",
+    "category": "duration",
+    "raw_prescription_text": "Tab Ciprofloxacin 500mg 1 tab BD x 2 weeks",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      { "frequency_code": "TWICE_DAILY", "duration_value": 2, "duration_unit": "week" }
+    ],
+    "expected_reminders_count": 28
+  },
+  {
+    "sample_id": "SYN-14",
+    "name": "Azithromycin 3/7 slash duration",
+    "category": "duration",
+    "raw_prescription_text": "Tab Azithromycin 500mg 1 tab OD x 3/7",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      { "frequency_code": "ONCE_DAILY", "duration_value": 3, "duration_unit": "day" }
+    ],
+    "expected_reminders_count": 3
+  },
+  {
+    "sample_id": "SYN-15",
+    "name": "Post-MI Cardiac Triple",
+    "category": "multi_medication",
+    "raw_prescription_text": "Tab Ecosprin 75mg 1 tab OD pc\nTab Clopidogrel 75mg 1 tab OD pc\nTab Atorvastatin 20mg 1 tab HS",
+    "expected_candidate_count": 3,
+    "expected_candidates": [
+      { "frequency_code": "ONCE_DAILY", "timing_anchors": ["AFTER_MEAL"] },
+      { "frequency_code": "ONCE_DAILY", "timing_anchors": ["AFTER_MEAL"] },
+      { "timing_anchors": ["BEDTIME"] }
+    ],
+    "expected_reminders_count": 3
+  },
+  {
+    "sample_id": "SYN-16",
+    "name": "Respiratory Dual Therapy",
+    "category": "multi_medication",
+    "raw_prescription_text": "Tab Levocetirizine 5mg 1 tab HS x 10 days\nSyr Ambroxol 10ml TDS",
+    "expected_candidate_count": 2,
+    "expected_candidates": [
+      { "timing_anchors": ["BEDTIME"], "duration_value": 10, "duration_unit": "day" },
+      { "frequency_code": "THRICE_DAILY", "dose_amount": { "kind": "integer", "value": 10 }, "dose_unit": "ml" }
+    ],
+    "expected_reminders_count": 13
+  },
+  {
+    "sample_id": "SYN-17",
+    "name": "Thyroxine 1/2 tab OD",
+    "category": "fractions",
+    "raw_prescription_text": "Tab Thyroxine 12.5mcg 1/2 tab OD",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      { "dose_amount": { "kind": "fraction", "numerator": 1, "denominator": 2 }, "dose_unit": "tablet", "frequency_code": "ONCE_DAILY" }
+    ],
+    "expected_reminders_count": 1
+  },
+  {
+    "sample_id": "SYN-18",
+    "name": "Clonazepam ½ tab HS",
+    "category": "fractions",
+    "raw_prescription_text": "Tab Clonazepam 0.25mg ½ tab HS",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      { "dose_amount": { "kind": "fraction", "numerator": 1, "denominator": 2 }, "dose_unit": "tablet", "timing_anchors": ["BEDTIME"] }
+    ],
+    "expected_reminders_count": 1
+  },
+  {
+    "sample_id": "SYN-19",
+    "name": "Metformin continuous",
+    "category": "duration",
+    "raw_prescription_text": "Tab Metformin 500mg 1 tab BD continue",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      { "frequency_code": "TWICE_DAILY", "verifier_action_required": true }
+    ],
+    "expected_reminders_count": 2
+  },
+  {
+    "sample_id": "SYN-20",
+    "name": "Multivitamin bare duration x 10",
+    "category": "duration",
+    "raw_prescription_text": "Tab Multivitamin 1 tab OD x 10",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      { "frequency_code": "ONCE_DAILY", "verifier_action_required": true }
+    ]
+  },
+  {
+    "sample_id": "SYN-21",
+    "name": "Cough Syrup 10mL TDS",
+    "category": "volumes",
+    "raw_prescription_text": "Syr CoughSyrup 10mL TDS x 5 days",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      { "dose_amount": { "kind": "integer", "value": 10 }, "dose_unit": "ml", "frequency_code": "THRICE_DAILY", "duration_value": 5, "duration_unit": "day" }
+    ],
+    "expected_reminders_count": 15
+  },
+  {
+    "sample_id": "SYN-22",
+    "name": "Ibuprofen PRN",
+    "category": "conditional",
+    "raw_prescription_text": "Tab Ibuprofen 400mg 1 tab PRN",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      { "as_needed": true, "schedule_derivable": false }
+    ],
+    "expected_reminders_count": 0
+  },
+  {
+    "sample_id": "SYN-23",
+    "name": "Contradiction BD OD",
+    "category": "adversarial",
+    "raw_prescription_text": "Tab Metformin 500mg 1 tab BD OD",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      { "frequency_code": null, "verifier_action_required": true }
+    ]
+  },
+  {
+    "sample_id": "SYN-24",
+    "name": "Token boundary Atorvastatin",
+    "category": "adversarial",
+    "raw_prescription_text": "Tab Atorvastatin 20mg 1 tab BD",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      { "frequency_code": "TWICE_DAILY", "dose_strength_value": 20, "immediate": null }
+    ],
+    "expected_reminders_count": 2
+  },
+  {
+    "sample_id": "SYN-25",
+    "name": "Missing dose amount",
+    "category": "adversarial",
+    "raw_prescription_text": "Tab UnknownDrug 500mg BD",
+    "expected_candidate_count": 1,
+    "expected_candidates": [
+      { "frequency_code": "TWICE_DAILY", "dose_amount": null, "verifier_action_required": true }
+    ]
+  },
+  {
+    "sample_id": "SYN-26",
+    "name": "Non-medication clinical text",
+    "category": "adversarial",
+    "raw_prescription_text": "Rx Consultation Only\nPatient Advised Bed Rest\nFollow up after blood test",
+    "expected_candidate_count": 0,
+    "expected_candidates": []
+  },
+  {
+    "sample_id": "SYN-27",
+    "name": "Corrupted shorthand 8D",
+    "category": "adversarial",
+    "raw_prescription_text": "Tab Amoxicillin 500mg 1 tab TDS\nTab CorruptedLine 500mg 8D",
+    "expected_candidate_count": 2,
+    "expected_candidates": [
+      { "frequency_code": "THRICE_DAILY", "verifier_action_required": null },
+      { "frequency_code": null, "verifier_action_required": null }
+    ]
+  },
+  {
+    "sample_id": "SYN-28",
+    "name": "Multi-Medication Partial Rejection Gate Block",
+    "category": "adversarial",
+    "raw_prescription_text": "Tab Metformin 500mg 1 tab BD\nTab Paracetamol 500mg 1 tab TDS",
+    "expected_candidate_count": 2,
+    "expected_candidates": [
+      { "frequency_code": "TWICE_DAILY" },
+      { "frequency_code": "THRICE_DAILY" }
+    ]
+  }
+]

@@ -1,0 +1,38 @@
+{
+  "name": "prescriptionsetu-api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "PrescriptionSetu API — deterministic shorthand parser and verification gate",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "ts-node src/server.ts",
+    "start": "ts-node src/server.ts",
+    "test": "jest",
+    "typecheck": "tsc --noEmit",
+    "migrate:latest": "knex --knexfile knexfile.ts migrate:latest",
+    "migrate:rollback": "knex --knexfile knexfile.ts migrate:rollback",
+    "seed:run": "knex --knexfile knexfile.ts seed:run"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.4.0",
+    "@types/pg": "^8.23.1",
+    "@types/supertest": "^7.2.1",
+    "jest": "^30.4.2",
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.12",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.9.3"
+  },
+  "dependencies": {
+    "bullmq": "^6.3.2",
+    "express": "^5.2.1",
+    "ioredis": "^6.0.0",
+    "knex": "^3.3.0",
+    "pg": "^8.23.0"
+  }
+}

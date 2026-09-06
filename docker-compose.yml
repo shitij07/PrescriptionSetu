@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  api:
+    build: ./apps/api
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/prescriptionsetu
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./apps/api:/app
+
+  ocr-service:
+    build: ./apps/ocr-service
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHON_ENV=development
+    volumes:
+      - ./apps/ocr-service:/app
+
+  dashboard:
+    build: ./apps/dashboard
+    ports:
+      - "3001:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+    volumes:
+      - ./apps/dashboard:/app
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=prescriptionsetu
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
