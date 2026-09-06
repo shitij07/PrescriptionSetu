@@ -66,6 +66,7 @@ export default function PrescriptionDetailPage() {
   }, [fetchDetail]);
 
   const handleConfirm = async (medId: string) => {
+    if (isVerified) return;
     setIsProcessing(true);
     setError(null);
     try {
@@ -80,10 +81,12 @@ export default function PrescriptionDetailPage() {
   };
 
   const handleOpenCorrect = (med: FormattedMedication) => {
+    if (isVerified) return;
     setCorrectMedication(med);
   };
 
   const handleOpenReject = (med: FormattedMedication) => {
+    if (isVerified) return;
     setRejectMedication(med);
   };
 
@@ -91,7 +94,7 @@ export default function PrescriptionDetailPage() {
     corrections: Partial<EffectiveClinicalFields>,
     reason?: string,
   ) => {
-    if (!correctMedication) return;
+    if (!correctMedication || isVerified) return;
     setIsProcessing(true);
     setError(null);
     try {
@@ -112,7 +115,7 @@ export default function PrescriptionDetailPage() {
   };
 
   const handleConfirmReject = async (reason: string) => {
-    if (!rejectMedication) return;
+    if (!rejectMedication || isVerified) return;
     setIsProcessing(true);
     setError(null);
     try {
@@ -306,6 +309,7 @@ export default function PrescriptionDetailPage() {
                 onOpenCorrect={handleOpenCorrect}
                 onOpenReject={handleOpenReject}
                 isProcessing={isProcessing}
+                isVerified={isVerified}
               />
             ))}
           </div>

@@ -18,23 +18,61 @@ import type { Knex } from 'knex';
 describe('SI-01 Prescription Verification Gate & Actions', () => {
   let mockDb: any;
   let mockTrx: any;
-  let builder: any;
+  let prescriptionBuilder: any;
+  let medicationBuilder: any;
+  let auditBuilder: any;
 
   beforeEach(() => {
-    builder = {
-      where: jest.fn().mockReturnThis(),
-      whereIn: jest.fn().mockReturnThis(),
-      update: jest.fn().mockResolvedValue(1),
-      insert: jest.fn().mockResolvedValue([1]),
-      first: jest.fn().mockResolvedValue(null),
-      select: jest.fn().mockReturnThis(),
+    const defaultPrescription = {
+      id: '22222222-2222-2222-2222-222222222222',
+      status: 'pending_verification',
+      verified_at: null,
+      verified_by: null,
     };
 
-    mockTrx = jest.fn((table: string) => builder);
+    const defaultMed = {
+      id: '11111111-1111-1111-1111-111111111111',
+      prescription_id: '22222222-2222-2222-2222-222222222222',
+      verification_status: 'pending',
+      lifecycle_state: null,
+      parse_result: {},
+    };
+
+    prescriptionBuilder = {
+      where: jest.fn().mockReturnThis(),
+      forUpdate: jest.fn().mockReturnThis(),
+      update: jest.fn().mockResolvedValue(1),
+      first: jest.fn().mockResolvedValue(defaultPrescription),
+    };
+
+    medicationBuilder = {
+      where: jest.fn().mockReturnThis(),
+      whereIn: jest.fn().mockReturnThis(),
+      forUpdate: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      update: jest.fn().mockResolvedValue(1),
+      first: jest.fn().mockResolvedValue(defaultMed),
+    };
+
+    auditBuilder = {
+      insert: jest.fn().mockResolvedValue([1]),
+      where: jest.fn().mockReturnThis(),
+      whereIn: jest.fn().mockReturnThis(),
+      first: jest.fn().mockResolvedValue(null),
+      count: jest.fn().mockReturnThis(),
+    };
+
+    const tableRouter = (table: string) => {
+      if (table === 'prescriptions') return prescriptionBuilder;
+      if (table === 'medications') return medicationBuilder;
+      return auditBuilder;
+    };
+
+    mockTrx = jest.fn(tableRouter);
     mockTrx.commit = jest.fn().mockResolvedValue(undefined);
     mockTrx.rollback = jest.fn().mockResolvedValue(undefined);
 
-    mockDb = jest.fn((table: string) => builder);
+    mockDb = jest.fn(tableRouter);
     mockDb.transaction = jest.fn((callback: (trx: any) => Promise<any>) => callback(mockTrx));
   });
 
@@ -54,14 +92,16 @@ describe('SI-01 Prescription Verification Gate & Actions', () => {
 
     const existingMed = {
       id: medId,
+      prescription_id: '22222222-2222-2222-2222-222222222222',
       frequency_code: 'ONCE_DAILY',
       times_per_day: 1,
       dose_amount: { kind: 'integer', value: 1 },
       verification_status: 'pending',
+      lifecycle_state: null,
       parse_result: { matches: [{ rule_id: 'FREQ-OD-001' }] },
     };
 
-    builder.first.mockResolvedValue(existingMed);
+    medicationBuilder.first.mockResolvedValue(existingMed);
 
     const corrections = {
       frequency_code: 'TWICE_DAILY' as const,
@@ -99,7 +139,7 @@ describe('SI-01 Prescription Verification Gate & Actions', () => {
       { id: 'm2', verification_status: 'pending' },
     ];
 
-    builder.where.mockResolvedValue(medications);
+    medicationBuilder.where.mockResolvedValue(medications);
 
     await expect(verifyPrescription(mockDb, prescriptionId, verifierId)).rejects.toThrow(
       'Cannot verify prescription: medication is still pending verification',
@@ -115,7 +155,7 @@ describe('SI-01 Prescription Verification Gate & Actions', () => {
       { id: 'm2', verification_status: 'rejected' },
     ];
 
-    builder.where.mockResolvedValue(medications);
+    medicationBuilder.where.mockResolvedValue(medications);
 
     await expect(verifyPrescription(mockDb, prescriptionId, verifierId)).rejects.toThrow(
       'Cannot verify prescription: medication has been rejected',
@@ -131,8 +171,8 @@ describe('SI-01 Prescription Verification Gate & Actions', () => {
       { id: 'm2', verification_status: 'corrected' },
     ];
 
-    // First call to .where({ prescription_id }) resolves to medications
-    builder.where.mockResolvedValueOnce(medications);
+    // Mock medications resolution on await
+    medicationBuilder.then = (resolve: any) => resolve(medications);
 
     const result = await verifyPrescription(mockDb, prescriptionId, verifierId);
 

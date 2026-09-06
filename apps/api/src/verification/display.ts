@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Verification Dashboard Display Expansions.
  * Authoritative sources: `PercriptionSetuMASTERPLAN.md` §18.5 DP2, `docs/API_CONTRACTS.md` §13.2.
  *
@@ -57,6 +57,22 @@ export function resolveDisplayExpansions(matches: readonly MatchRecord[]): Displ
 }
 
 /**
+ * Safely parses numeric or decimal string values (such as PostgreSQL decimal(10, 4))
+ * into standard JavaScript numbers without trailing zeroes (e.g. "500.0000" -> 500).
+ */
+export function parseNumericValue(val: unknown): number | null {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'number') return val;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (trimmed === '') return null;
+    const parsed = Number(trimmed);
+    return isNaN(parsed) ? null : parsed;
+  }
+  return null;
+}
+
+/**
  * Enriches a raw MedicationRecord with parsed candidate details and display expansions for dashboard rendering.
  */
 export function formatMedicationForDashboard(medication: MedicationRecord): Record<string, unknown> {
@@ -77,23 +93,23 @@ export function formatMedicationForDashboard(medication: MedicationRecord): Reco
     lifecycle_state: medication.lifecycle_state,
     effective_fields: {
       frequency_code: medication.frequency_code,
-      times_per_day: medication.times_per_day,
+      times_per_day: parseNumericValue(medication.times_per_day),
       timing_anchors: medication.timing_anchors,
       dose_amount: medication.dose_amount,
       dose_unit: medication.dose_unit,
-      dose_strength_value: medication.dose_strength_value,
+      dose_strength_value: parseNumericValue(medication.dose_strength_value),
       dose_strength_unit: medication.dose_strength_unit,
-      duration_value: medication.duration_value,
+      duration_value: parseNumericValue(medication.duration_value),
       duration_unit: medication.duration_unit,
       duration_indefinite: medication.duration_indefinite,
       as_needed: medication.as_needed,
-      total_doses: medication.total_doses,
+      total_doses: parseNumericValue(medication.total_doses),
       recurring: medication.recurring,
       immediate: medication.immediate,
       schedule_derivable: medication.schedule_derivable,
       verifier_action_required: medication.verifier_action_required,
-      max_doses_per_day: medication.max_doses_per_day,
-      min_interval_hours: medication.min_interval_hours,
+      max_doses_per_day: parseNumericValue(medication.max_doses_per_day),
+      min_interval_hours: parseNumericValue(medication.min_interval_hours),
     },
     display_expansions: displayExpansions,
     candidate_readings: parseResult.candidate_readings || [],

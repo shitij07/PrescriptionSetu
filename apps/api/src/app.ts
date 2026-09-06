@@ -14,6 +14,7 @@ import { createPrescriptionsRouter } from './routes/prescriptions';
 import { createMedicationsRouter } from './routes/medications';
 import { createAdherenceRouter } from './routes/adherence';
 import { createPatientsRouter } from './routes/patients';
+import { createAuditRouter } from './routes/audit';
 import { createRateLimiter, RateLimitOptions } from './middleware/rate-limiter';
 import { createCorsMiddleware, CorsOptions } from './middleware/cors';
 
@@ -41,6 +42,7 @@ export function createApp(
   app.use('/api/medications', createMedicationsRouter(db));
   app.use('/api/adherence', createAdherenceRouter(db, messageProvider));
   app.use('/api/patients', createPatientsRouter(db, loggerInstance));
+  app.use('/api/audit', createAuditRouter(db, loggerInstance));
 
   // Health check endpoint
   app.get('/health', (_req: Request, res: Response) => {

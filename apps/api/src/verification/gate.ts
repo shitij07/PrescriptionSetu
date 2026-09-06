@@ -24,6 +24,8 @@ export interface VerificationResult {
 
 /**
  * Confirms a medication line as-is by human verifier (SI-01, SI-14).
+ * Enforces lock hierarchy: locks parent prescription FOR UPDATE first, verifies it is not verified,
+ * then locks medication FOR UPDATE second and verifies it is pre-verification (lifecycle_state === null).
  */
 export async function confirmMedication(
   db: Knex,
@@ -33,6 +35,60 @@ export async function confirmMedication(
   const now = new Date();
 
   const execute = async (trx: Knex.Transaction | Knex) => {
+    // 0. Fetch medication prescription_id
+    const medLookup = await trx('medications')
+      .where({ id: medicationId })
+      .select('prescription_id')
+      .first();
+
+    if (!medLookup) {
+      const err: any = new Error(`Medication with id ${medicationId} not found`);
+      err.code = 'RESOURCE_NOT_FOUND';
+      throw err;
+    }
+
+    // 1. Lock parent prescription FOR UPDATE first
+    let presQuery = trx('prescriptions').where({ id: medLookup.prescription_id });
+    if (typeof (presQuery as any).forUpdate === 'function') {
+      presQuery = (presQuery as any).forUpdate();
+    }
+    const prescription = await presQuery.first();
+
+    if (!prescription) {
+      const err: any = new Error(`Prescription with id ${medLookup.prescription_id} not found`);
+      err.code = 'RESOURCE_NOT_FOUND';
+      throw err;
+    }
+
+    if (prescription.status === 'verified') {
+      const err: any = new Error(
+        `Cannot confirm medication: parent prescription ${medLookup.prescription_id} has already been verified`,
+      );
+      err.code = 'PRESCRIPTION_ALREADY_VERIFIED';
+      throw err;
+    }
+
+    // 2. Lock medication FOR UPDATE second
+    let medQuery = trx('medications').where({ id: medicationId });
+    if (typeof (medQuery as any).forUpdate === 'function') {
+      medQuery = (medQuery as any).forUpdate();
+    }
+    const existing = await medQuery.first();
+
+    if (!existing) {
+      const err: any = new Error(`Medication with id ${medicationId} not found`);
+      err.code = 'RESOURCE_NOT_FOUND';
+      throw err;
+    }
+
+    if (existing.lifecycle_state !== null) {
+      const err: any = new Error(
+        `Cannot confirm medication: medication is already in lifecycle state '${existing.lifecycle_state}'`,
+      );
+      err.code = 'PRESCRIPTION_ALREADY_VERIFIED';
+      throw err;
+    }
+
     await trx('medications')
       .where({ id: medicationId })
       .update({
@@ -63,8 +119,10 @@ export async function confirmMedication(
 }
 
 /**
- * Corrects one or more clinical fields on a medication line (SI-01, SI-04, SI-14).
+ * Corrects one or more clinical fields on a medication line (SI-01, SI-04, SI-12, SI-14).
  * IMPORTANT: Original parse_result is preserved verbatim and is never overwritten.
+ * Enforces lock hierarchy: locks parent prescription FOR UPDATE first, verifies it is not verified,
+ * then locks medication FOR UPDATE second and verifies it is pre-verification (lifecycle_state === null).
  */
 export async function correctMedication(
   db: Knex,
@@ -94,9 +152,58 @@ export async function correctMedication(
   const now = new Date();
 
   const execute = async (trx: Knex.Transaction | Knex) => {
-    const existing = await trx('medications').where({ id: medicationId }).first();
+    // 0. Fetch medication prescription_id
+    const medLookup = await trx('medications')
+      .where({ id: medicationId })
+      .select('prescription_id')
+      .first();
+
+    if (!medLookup) {
+      const err: any = new Error(`Medication with id ${medicationId} not found`);
+      err.code = 'RESOURCE_NOT_FOUND';
+      throw err;
+    }
+
+    // 1. Lock parent prescription FOR UPDATE first
+    let presQuery = trx('prescriptions').where({ id: medLookup.prescription_id });
+    if (typeof (presQuery as any).forUpdate === 'function') {
+      presQuery = (presQuery as any).forUpdate();
+    }
+    const prescription = await presQuery.first();
+
+    if (!prescription) {
+      const err: any = new Error(`Prescription with id ${medLookup.prescription_id} not found`);
+      err.code = 'RESOURCE_NOT_FOUND';
+      throw err;
+    }
+
+    if (prescription.status === 'verified') {
+      const err: any = new Error(
+        `Cannot edit medication: parent prescription ${medLookup.prescription_id} has already been verified (SI-12)`,
+      );
+      err.code = 'CANNOT_EDIT_VERIFIED_MEDICATION';
+      throw err;
+    }
+
+    // 2. Lock medication FOR UPDATE second
+    let medQuery = trx('medications').where({ id: medicationId });
+    if (typeof (medQuery as any).forUpdate === 'function') {
+      medQuery = (medQuery as any).forUpdate();
+    }
+    const existing = await medQuery.first();
+
     if (!existing) {
-      throw new Error(`Medication with id ${medicationId} not found`);
+      const err: any = new Error(`Medication with id ${medicationId} not found`);
+      err.code = 'RESOURCE_NOT_FOUND';
+      throw err;
+    }
+
+    if (existing.lifecycle_state !== null) {
+      const err: any = new Error(
+        `Cannot edit medication: medication is already in lifecycle state '${existing.lifecycle_state}' (SI-12)`,
+      );
+      err.code = 'CANNOT_EDIT_VERIFIED_MEDICATION';
+      throw err;
     }
 
     // Update clinical fields and set verification_status = 'corrected'
@@ -137,6 +244,8 @@ export async function correctMedication(
 /**
  * Rejects a medication line item (SI-01, SI-14).
  * A rejected medication line never activates and is never deliverable.
+ * Enforces lock hierarchy: locks parent prescription FOR UPDATE first, verifies it is not verified,
+ * then locks medication FOR UPDATE second and verifies it is pre-verification (lifecycle_state === null).
  */
 export async function rejectMedication(
   db: Knex,
@@ -147,6 +256,60 @@ export async function rejectMedication(
   const now = new Date();
 
   const execute = async (trx: Knex.Transaction | Knex) => {
+    // 0. Fetch medication prescription_id
+    const medLookup = await trx('medications')
+      .where({ id: medicationId })
+      .select('prescription_id')
+      .first();
+
+    if (!medLookup) {
+      const err: any = new Error(`Medication with id ${medicationId} not found`);
+      err.code = 'RESOURCE_NOT_FOUND';
+      throw err;
+    }
+
+    // 1. Lock parent prescription FOR UPDATE first
+    let presQuery = trx('prescriptions').where({ id: medLookup.prescription_id });
+    if (typeof (presQuery as any).forUpdate === 'function') {
+      presQuery = (presQuery as any).forUpdate();
+    }
+    const prescription = await presQuery.first();
+
+    if (!prescription) {
+      const err: any = new Error(`Prescription with id ${medLookup.prescription_id} not found`);
+      err.code = 'RESOURCE_NOT_FOUND';
+      throw err;
+    }
+
+    if (prescription.status === 'verified') {
+      const err: any = new Error(
+        `Cannot reject medication: parent prescription ${medLookup.prescription_id} has already been verified`,
+      );
+      err.code = 'CANNOT_REJECT_VERIFIED_MEDICATION';
+      throw err;
+    }
+
+    // 2. Lock medication FOR UPDATE second
+    let medQuery = trx('medications').where({ id: medicationId });
+    if (typeof (medQuery as any).forUpdate === 'function') {
+      medQuery = (medQuery as any).forUpdate();
+    }
+    const existing = await medQuery.first();
+
+    if (!existing) {
+      const err: any = new Error(`Medication with id ${medicationId} not found`);
+      err.code = 'RESOURCE_NOT_FOUND';
+      throw err;
+    }
+
+    if (existing.lifecycle_state !== null) {
+      const err: any = new Error(
+        `Cannot reject medication: medication is already in lifecycle state '${existing.lifecycle_state}'`,
+      );
+      err.code = 'CANNOT_REJECT_VERIFIED_MEDICATION';
+      throw err;
+    }
+
     await trx('medications')
       .where({ id: medicationId })
       .update({
@@ -185,7 +348,10 @@ export async function rejectMedication(
  * Transitions `prescriptions.status` to 'verified' and activates all confirmed/corrected
  * medications (lifecycle_state: NULL -> 'active') atomically inside a single transaction.
  *
- * @throws Error if any medication is pending, rejected, or if no medications exist.
+ * Enforces lock hierarchy: locks `prescriptions` FOR UPDATE first, verifies it is not verified,
+ * then locks all associated `medications` FOR UPDATE second.
+ *
+ * @throws Error if any medication is pending, rejected, or if no medications exist, or if already verified.
  */
 export async function verifyPrescription(
   db: Knex,
@@ -195,13 +361,36 @@ export async function verifyPrescription(
   const now = new Date();
 
   return await db.transaction(async (trx) => {
-    // 1. Fetch all associated medications
-    const medications = await trx('medications').where({ prescription_id: prescriptionId });
+    // 1. Lock prescription FOR UPDATE first
+    let presQuery = trx('prescriptions').where({ id: prescriptionId });
+    if (typeof (presQuery as any).forUpdate === 'function') {
+      presQuery = (presQuery as any).forUpdate();
+    }
+    const prescription = await presQuery.first();
 
-    // 2. Enforce SI-01 Gate Condition
+    if (!prescription) {
+      const err: any = new Error(`Prescription with id ${prescriptionId} not found`);
+      err.code = 'RESOURCE_NOT_FOUND';
+      throw err;
+    }
+
+    if (prescription.status === 'verified') {
+      const err: any = new Error(`Prescription ${prescriptionId} has already been verified`);
+      err.code = 'PRESCRIPTION_ALREADY_VERIFIED';
+      throw err;
+    }
+
+    // 2. Lock all associated medications FOR UPDATE second
+    let medsQuery = trx('medications').where({ prescription_id: prescriptionId });
+    if (typeof (medsQuery as any).forUpdate === 'function') {
+      medsQuery = (medsQuery as any).forUpdate();
+    }
+    const medications = await medsQuery;
+
+    // 3. Enforce SI-01 Gate Condition
     assertPrescriptionVerifiable(medications);
 
-    // 3. Mark prescription verified
+    // 4. Mark prescription verified
     await trx('prescriptions')
       .where({ id: prescriptionId })
       .update({
@@ -211,7 +400,7 @@ export async function verifyPrescription(
         updated_at: now,
       });
 
-    // 4. Atomically activate all confirmed/corrected medications (SCHEMA §9, SI-01)
+    // 5. Atomically activate all confirmed/corrected medications (SCHEMA §9, SI-01)
     await trx('medications')
       .where({ prescription_id: prescriptionId })
       .whereIn('verification_status', ['confirmed', 'corrected'])
@@ -220,7 +409,7 @@ export async function verifyPrescription(
         lifecycle_changed_at: now,
       });
 
-    // 5. Atomically generate and persist concrete reminder rows for all derivable medications (SI-03, D-030)
+    // 6. Atomically generate and persist concrete reminder rows for all derivable medications (SI-03, D-030)
     const reminderResult = await generateAndPersistReminders(trx, prescriptionId);
 
     return {

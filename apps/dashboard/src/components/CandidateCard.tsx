@@ -19,6 +19,7 @@ interface CandidateCardProps {
   onOpenCorrect: (med: FormattedMedication) => void;
   onOpenReject: (med: FormattedMedication) => void;
   isProcessing?: boolean;
+  isVerified?: boolean;
 }
 
 export function CandidateCard({
@@ -28,6 +29,7 @@ export function CandidateCard({
   onOpenCorrect,
   onOpenReject,
   isProcessing,
+  isVerified,
 }: CandidateCardProps) {
   const { effective_fields, display_expansions, verification_status } = medication;
 
@@ -37,6 +39,13 @@ export function CandidateCard({
     corrected: 'bg-brand-50 text-brand-700 border-brand-200',
     rejected: 'bg-rose-50 text-rose-700 border-rose-200',
   }[verification_status];
+
+  // Helper to strip trailing decimal zeroes from numeric values or strings
+  const formatNumeric = (val: unknown): string | null => {
+    if (val === null || val === undefined) return null;
+    const num = typeof val === 'number' ? val : Number(val);
+    return isNaN(num) ? String(val) : String(num);
+  };
 
   // Helper to format dose string
   let doseStr = 'Not stated';
@@ -53,9 +62,10 @@ export function CandidateCard({
   }
 
   // Helper to format strength string
+  const formattedStrength = formatNumeric(effective_fields.dose_strength_value);
   const strengthStr =
-    effective_fields.dose_strength_value !== null
-      ? `${effective_fields.dose_strength_value}${effective_fields.dose_strength_unit || ''}`
+    formattedStrength !== null
+      ? `${formattedStrength}${effective_fields.dose_strength_unit || ''}`
       : 'Not stated';
 
   // Helper to format frequency
@@ -64,9 +74,10 @@ export function CandidateCard({
     : 'Not stated';
 
   // Helper to format duration
+  const formattedDur = formatNumeric(effective_fields.duration_value);
   const durStr =
-    effective_fields.duration_value !== null
-      ? `${effective_fields.duration_value} ${effective_fields.duration_unit || ''}(s)`
+    formattedDur !== null
+      ? `${formattedDur} ${effective_fields.duration_unit || ''}(s)`
       : effective_fields.duration_indefinite
       ? 'Indefinite (Continuous)'
       : 'Not stated';
@@ -164,9 +175,10 @@ export function CandidateCard({
       <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100">
         <button
           type="button"
-          disabled={isProcessing || verification_status === 'rejected'}
+          disabled={isProcessing || verification_status === 'rejected' || isVerified}
           onClick={() => onOpenReject(medication)}
-          className="px-3.5 py-1.5 rounded-full border border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-rose-700 text-xs font-medium flex items-center space-x-1.5 transition-colors disabled:opacity-50"
+          className="px-3.5 py-1.5 rounded-full border border-rose-200 bg-rose-50/50 hover:bg-rose-100 text-rose-700 text-xs font-medium flex items-center space-x-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          title={isVerified ? 'Prescription already verified' : undefined}
         >
           <X className="w-3.5 h-3.5" />
           <span>Reject</span>
@@ -174,9 +186,10 @@ export function CandidateCard({
 
         <button
           type="button"
-          disabled={isProcessing}
+          disabled={isProcessing || isVerified}
           onClick={() => onOpenCorrect(medication)}
-          className="px-3.5 py-1.5 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium flex items-center space-x-1.5 transition-colors disabled:opacity-50 shadow-2xs"
+          className="px-3.5 py-1.5 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium flex items-center space-x-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+          title={isVerified ? 'Prescription already verified' : undefined}
         >
           <Edit2 className="w-3.5 h-3.5" />
           <span>Correct</span>
@@ -184,9 +197,10 @@ export function CandidateCard({
 
         <button
           type="button"
-          disabled={isProcessing || verification_status === 'confirmed'}
+          disabled={isProcessing || verification_status === 'confirmed' || isVerified}
           onClick={() => onConfirm(medication.id)}
-          className="px-4 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center space-x-1.5 transition-colors disabled:opacity-50 shadow-xs"
+          className="px-4 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center space-x-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
+          title={isVerified ? 'Prescription already verified' : undefined}
         >
           <Check className="w-3.5 h-3.5" />
           <span>Confirm</span>

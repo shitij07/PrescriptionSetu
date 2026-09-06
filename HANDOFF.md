@@ -5,7 +5,7 @@
 
 ## Resume check (run first)
 
-`git log --oneline -15` → `git status` → `git branch --show-current`. Dirty tree = a prior session died mid-task; reconcile before new work; trust `git log`. Baseline: branch `master`, **0 commits** — all-untracked is expected, not a failure.
+`git log --oneline -15` → `git status` → `git branch --show-current`. Dirty tree = a prior session died mid-task; reconcile before new work; trust `git log`. Baseline commit: `9136382`, branch `master`.
 
 ## Current Phase
 
@@ -13,9 +13,39 @@ Phase 1 — printed-prescription OCR + parsing (no delivery yet). Sequence in `B
 
 ## In Progress
 
-- *Nothing currently in progress.*
+None (Ready for next task).
 
 ## Done
+
+- 2026-09-06 — **Clinical Data Discrepancies & Workstation Reload Remediation COMPLETE.**
+  - Diagnosed full end-to-end data path for Asha Suresh Patil (`de103cdf-a2c8-4381-823f-352c465ae365`) prescription `#570fe6a2` medication `#8e941856` (PostgreSQL `decimal(10, 4)` representation, unit divergence from human correction `dd7a0c49`, and conflicting `as_needed: true` badge alongside `THRICE_DAILY`).
+  - Added `parseNumericValue` in `apps/api/src/verification/display.ts` sanitizing PostgreSQL `decimal(10, 4)` values (`"500.0000"` -> `500`) across all numeric fields in `formatMedicationForDashboard()`.
+  - Updated `CandidateCard.tsx` and `patients/[id]/page.tsx` with precision-preserving numeric formatting, cleanly stripping trailing zeros in dose strength and duration displays.
+  - Updated `CorrectionModal.tsx` to pre-fill numeric inputs cleanly without `.0000` and added clinical guidance notice when marking `As Needed (SOS/PRN)` alongside recurring daily frequencies.
+  - Inspected and documented the workstation "Reload" button in `prescriptions/[id]/page.tsx` (`fetchDetail()` calling `GET /api/prescriptions/:id`).
+  - Created and executed `apps/api/src/scripts/reconcile-clinical-discrepancies.ts`: reconciled Asha Suresh Patil's medication `#8e941856` back to canonical OCR truth (`dose_strength_value: 500`, `dose_strength_unit: 'mg'`, `as_needed: false`, `duration_unit: null`), recording audited SI-14 event `c5d517de-6427-4375-97f9-ea9fc16874c4`. Verified idempotency (0 anomalies remaining).
+  - Added unit test suite `apps/api/tests/verification/display-formatting.test.ts` (5 tests) and integration suite `apps/api/tests/api/clinical-reconciliation.test.ts` (3 tests).
+  - Added frontend tests in `candidate-card.test.tsx` (2 tests) and `patient-active-medications.test.tsx` (1 test).
+  - **Verified:** Backend `npm run typecheck` exits 0; `npm test -- --runInBand --forceExit` passes **55 suites, 654 tests (100% passing)**. Frontend `npm run typecheck` exits 0; `npm test` passes **10 suites, 48 tests (100% passing)**; `npm run build` succeeds compiling all 9 routes. Total repository verified baseline: **65 test suites, 702 tests (100% passing)**. Zero git commits created.
+
+- 2026-09-06 — **Upstream Verification & Medication Lifecycle State Integrity Fix COMPLETE.**
+  - Documented verification action routes (`POST /api/medications/:id/confirm`, `POST /api/medications/:id/correct`, `POST /api/medications/:id/reject`, `POST /api/prescriptions/:id/verify`, `POST /api/medications/:id/stop`), lock ordering, and 422 error contracts in `docs/API_CONTRACTS.md` §13.2.
+  - Enforced strict transactional lock hierarchy (`prescriptions` `FOR UPDATE` first, `medications` `FOR UPDATE` second) across `verifyPrescription`, `confirmMedication`, `correctMedication`, and `rejectMedication` in `apps/api/src/verification/gate.ts`.
+  - Blocked post-verification candidate mutations with documented HTTP 422 envelopes (`PRESCRIPTION_ALREADY_VERIFIED`, `CANNOT_EDIT_VERIFIED_MEDICATION` per SI-12, `CANNOT_REJECT_VERIFIED_MEDICATION`). Preserved `POST /api/medications/:id/stop` independently for active medications (SI-10, SI-11).
+  - Updated `CandidateCard.tsx` and `prescriptions/[id]/page.tsx` with `isVerified={prescription.status === 'verified'}` disabling candidate review actions on verified prescriptions.
+  - Implemented `apps/api/src/scripts/reconcile-verification-state.ts` supporting dry-run inspection and `--execute` mode for Class 1-4 anomalies with SI-16 zero-PHI structured output.
+  - Executed reconciliation repair on development database: repaired Asha Suresh Patil's prescription `#570fe6a2` (reconciling medication `#8e941856` from `lifecycle_state: NULL` to `'active'`), reverted 2 invalid dummy prescriptions (`#1fa23c1e` and `#b5cd4fac`) to `pending_verification`. Idempotency scan confirmed 0 remaining anomalies. Verified `GET /api/patients/de103cdf-...` returns 1 active deliverable regimen.
+  - Added backend integration and unit tests in `verification-actions.test.ts` (16 tests) and `reconciliation-repair.test.ts` (6 tests), plus frontend tests in `candidate-card.test.tsx` (3 tests).
+  - **Verified:** Backend `npm run typecheck` exits 0; `npm test -- --runInBand --forceExit` passes **53 suites, 646 tests (100% passing)**. Frontend `npm run typecheck` exits 0; `npm test` passes **10 suites, 45 tests (100% passing)**; `npm run build` succeeds compiling all 9 routes. Total repository verified baseline: **63 test suites, 691 tests (100% passing)**. No git commits created.
+
+- 2026-09-06 — **Step 8 — Clinical Audit Trail Integration COMPLETE.**
+  - Documented `GET /api/audit` and `GET /api/audit/:id` contracts in `docs/API_CONTRACTS.md` §13.8 (headers, query parameters, canonical DPDP erasure semantics, response schemas, error envelopes, SI-14 immutability, and SI-16 zero-PHI logging constraints).
+  - Implemented `createAuditRouter(db, logger)` in `apps/api/src/routes/audit.ts` querying `medication_audit_events` with joins to `medications`, `prescriptions`, `patients`, and `caregivers`. Parameterized query filtering by `event_type` (`all`, `confirmed`, `corrected`, `rejected`, `stopped`, `parsed`, `erasure`), `patient_id` (UUID), `medication_id` (UUID), `search` (case-insensitive substring on drug name or actor name), with `limit` and `offset` pagination. Computes summary metrics (`total_events`, `corrections_count`, `stops_count`, `rejections_count`, `confirmations_count`, `erasures_count`). Preserves canonical DPDP erasure semantics (`event_type = 'stopped' AND reason = 'PATIENT_ERASURE_REQUEST'`) and displays `[DELETED_PATIENT]` for redacted patients. Strictly enforces SI-14 read-only immutability (mutations return 404) and SI-16 zero-PHI log stream discipline (`action: 'audit_log_query'`, `count`). Mounted at `/api/audit` in `apps/api/src/app.ts`.
+  - Added `AuditEventRecord`, `AuditSummaryMetrics`, `GetAuditEventsParams`, `GetAuditEventsResponse`, `api.getAuditEvents()`, and `api.getAuditEvent()` to `apps/dashboard/src/lib/api.ts`.
+  - Rebuilt `apps/dashboard/src/app/audit/page.tsx` with live data fetching, loading skeletons, error banner, empty states, live KPI StatCards, search bar, event type filter dropdown, links to `/patients/[id]` and `/prescriptions/[id]`, and an interactive before/after clinical field diff inspector for corrections (SI-14).
+  - Added comprehensive backend integration test suite `apps/api/tests/api/audit-routes.test.ts` (11 tests covering empty list, reverse-chronological order, event filtering, UUID validation, search, DPDP erased display, single event lookup, mutation 404s, and SI-16 log privacy).
+  - Added comprehensive frontend test suite `apps/dashboard/src/tests/audit-page.test.tsx` (6 tests covering live event list rendering, KPI summary metrics, old/new field diff toggle, contextual profile/prescription links, error banner, and empty state).
+  - **Verified:** Backend `apps/api` `npm run typecheck` exits 0; `npm test -- --runInBand --forceExit` passes **52 suites, 634 tests (100% passing)**. Frontend `apps/dashboard` `npm run typecheck` exits 0; `npm test` passes **10 suites, 44 tests (100% passing)**; `npm run build` succeeds compiling all 9 routes. Total repository verified baseline: **62 test suites, 678 tests (100% passing)**. Git baseline commit `9136382`.
 
 - 2026-09-06 — **Patient Profile — Active Medication Regimens Read/Display Integration COMPLETE.**
   - Documented `GET /api/patients/:id` contract in `docs/API_CONTRACTS.md` §13.7 (headers, path params, deliverable predicate query semantics, formatted response schema, error envelopes, and SI-16 logging constraints).
@@ -123,11 +153,19 @@ Phase 1 — printed-prescription OCR + parsing (no delivery yet). Sequence in `B
 
 ## Next Task
 
-**Slice 5 — Verification Workstation & Regimen Activation (Journey C: Review, Confirm & SI-01 Gate Execution):**
-- Verify candidate review interactions (`POST /api/medications/:id/confirm`, `POST /api/medications/:id/correct`, `POST /api/medications/:id/reject`) in `/prescriptions/[id]` reflect live in the UI and database.
-- Verify atomic SI-01 Verification Gate execution via `POST /api/prescriptions/:id/verify` when all medications are reviewed, asserting no pending/rejected medications remain.
-- Verify successful activation triggers reminder generation (`generateAndPersistReminders`) and that scheduled reminders appear in the Reminders Monitor (`/reminders`).
-- Add comprehensive integration tests and browser verification for the complete verification and activation journey.
+**Manual Verification of Remediated Display & Verification Workstation in Browser:**
+1. Start API server (`cd apps/api && npm run dev`) and Next.js dashboard (`cd apps/dashboard && npm run dev`).
+2. Navigate to `http://localhost:3001/patients/de103cdf-a2c8-4381-823f-352c465ae365` (Asha Suresh Patil):
+   - Verify Active Medication Regimens card renders `500mg (1 tablet)` (clean `500mg` without `.0000` or `mcg`).
+   - Verify frequency displays `THRICE DAILY (3x/day)`.
+   - Verify no spurious `SOS / PRN` badge is displayed.
+3. Navigate to `http://localhost:3001/prescriptions/570fe6a2-ea83-4fd7-9e65-0a6cf2d38bf3`:
+   - Verify candidate card displays strength `500mg` matching provenance pill `500mg → dose strength`.
+   - Verify `SOS / PRN (As Needed)` badge is absent.
+   - Test the workstation **Reload** button: verify click re-fetches data and animates the spinner without full page reload.
+4. Navigate to `http://localhost:3001/audit`:
+   - Verify clinical reconciliation event `c5d517de-6427-4375-97f9-ea9fc16874c4` is listed in audit trail.
+5. Upon manual verification approval, proceed to **Slice 5 — Verification Workstation & Regimen Activation (Journey C: Review, Confirm & SI-01 Gate Execution)**.
 
 ## Docs
 
@@ -145,4 +183,4 @@ Exist — root: MASTERPLAN, `AGENTS.md`, `PROJECT_CONTEXT.md`, `BUILD_ORDER.md`,
 
 ## Last Updated
 
-2026-09-06 — **Patient Profile — Active Medication Regimens Read/Display Integration COMPLETE.** Extended `GET /api/patients/:id` with deliverable predicate query (`verification_status IN ('confirmed', 'corrected') AND lifecycle_state = 'active'`) and `formatMedicationForDashboard()` formatting. Updated dashboard API client and `/patients/[id]` page to render active regimen cards and empty state. Total repository verified baseline: **60 test suites, 661 tests (100% passing)**. Branch `master`, **0 commits**.
+2026-09-06 — **Step 8 — Clinical Audit Trail Integration COMPLETE.** Implemented read-only `GET /api/audit` and `GET /api/audit/:id` with parameterized Knex joins. Wired dashboard `/audit` workstation with live KPI cards, search, type filtering, links, and old/new diff view. Total repository verified baseline: **62 test suites, 678 tests (100% passing)**. Git baseline commit `9136382`.

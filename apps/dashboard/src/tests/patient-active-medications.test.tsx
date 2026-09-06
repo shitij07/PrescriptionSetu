@@ -203,4 +203,32 @@ describe('Patient Profile Active Medication Regimens Integration', () => {
       expect(screen.getByText('Patient not found')).toBeInTheDocument();
     });
   });
+
+  it('strips trailing decimal zeroes from dose_strength_value string on regimen cards', async () => {
+    (api.getPatient as jest.Mock).mockResolvedValue({
+      patient: mockPatientBase,
+      active_prescriptions_count: 1,
+      active_medications: [
+        {
+          ...mockActiveMedication1,
+          effective_fields: {
+            ...mockActiveMedication1.effective_fields,
+            dose_strength_value: '500.0000' as any,
+            duration_value: '5.0000' as any,
+          },
+        },
+      ],
+    });
+
+    render(<PatientDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Amoxicillin')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('500mg (1 tablet)')).toBeInTheDocument();
+    expect(screen.queryByText('500.0000mg (1 tablet)')).not.toBeInTheDocument();
+    expect(screen.getByText('5 days')).toBeInTheDocument();
+    expect(screen.queryByText('5.0000 days')).not.toBeInTheDocument();
+  });
 });

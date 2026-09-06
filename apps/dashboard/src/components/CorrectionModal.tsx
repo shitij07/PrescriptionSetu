@@ -21,24 +21,28 @@ export function CorrectionModal({
 
   const ef = medication.effective_fields;
 
+  const formatInitialNumber = (val: unknown): string => {
+    if (val === null || val === undefined || val === '') return '';
+    const num = typeof val === 'number' ? val : Number(val);
+    return isNaN(num) ? String(val) : String(num);
+  };
+
   const [drugName, setDrugName] = useState(medication.drug_name || '');
   const [frequencyCode, setFrequencyCode] = useState(ef.frequency_code || '');
-  const [timesPerDay, setTimesPerDay] = useState(ef.times_per_day?.toString() || '');
+  const [timesPerDay, setTimesPerDay] = useState(formatInitialNumber(ef.times_per_day));
   const [doseAmount, setDoseAmount] = useState(
     typeof ef.dose_amount === 'object' && ef.dose_amount && 'value' in ef.dose_amount
-      ? ef.dose_amount.value.toString()
-      : typeof ef.dose_amount === 'number'
-      ? ef.dose_amount.toString()
-      : '',
+      ? formatInitialNumber(ef.dose_amount.value)
+      : formatInitialNumber(ef.dose_amount),
   );
   const [doseUnit, setDoseUnit] = useState<NonNullable<EffectiveClinicalFields['dose_unit']>>(
     ef.dose_unit || 'tablet',
   );
-  const [strengthValue, setStrengthValue] = useState(ef.dose_strength_value?.toString() || '');
+  const [strengthValue, setStrengthValue] = useState(formatInitialNumber(ef.dose_strength_value));
   const [strengthUnit, setStrengthUnit] = useState<NonNullable<EffectiveClinicalFields['dose_strength_unit']>>(
     ef.dose_strength_unit || 'mg',
   );
-  const [durationValue, setDurationValue] = useState(ef.duration_value?.toString() || '');
+  const [durationValue, setDurationValue] = useState(formatInitialNumber(ef.duration_value));
   const [durationUnit, setDurationUnit] = useState<NonNullable<EffectiveClinicalFields['duration_unit']>>(
     ef.duration_unit || 'day',
   );
@@ -210,6 +214,11 @@ export function CorrectionModal({
               As needed / SOS / PRN
             </label>
           </div>
+          {asNeeded && frequencyCode && frequencyCode !== 'AS_NEEDED' && (
+            <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 p-2 rounded-lg">
+              <strong>Clinical notice:</strong> Marking &quot;As needed (SOS/PRN)&quot; alongside a recurring frequency ({frequencyCode}) creates conflicting scheduling instructions. Scheduled WhatsApp reminders will not be generated for PRN/SOS medications (SI-08).
+            </p>
+          )}
 
           <div className="pt-2 border-t border-slate-100">
             <label className="block text-slate-700 font-medium mb-1">

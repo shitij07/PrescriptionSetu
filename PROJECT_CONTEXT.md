@@ -196,20 +196,20 @@ c:\Users\thopa\PerscriptionSetu
 │   │   │   ├── parser/        # Pure deterministic shorthand parser with exact-match rules
 │   │   │   ├── reminders/     # Reminder scheduler (IST math), generator, BullMQ worker
 │   │   │   ├── retention/     # DPDP Act right-to-erasure and image cleanup service
-│   │   │   ├── routes/        # Express routers (/prescriptions, /medications, /adherence, /patients)
+│   │   │   ├── routes/        # Express routers (/prescriptions, /medications, /adherence, /patients, /audit)
 │   │   │   ├── translation/   # Bhashini / Google Translate / Passthrough translation providers
 │   │   │   ├── verification/  # Inviolable SI-01 gate, guards, and candidate display formatters
 │   │   │   ├── app.ts         # Express application factory with SI-16 sanitized error handler
 │   │   │   └── server.ts      # Server entry point
-│   │   └── tests/             # 48 Jest suites (605 tests, 100% passing)
+│   │   └── tests/             # 52 Jest suites (634 tests, 100% passing)
 │   │
 │   ├── dashboard/             # Caregiver Operations Dashboard (Next.js 14 App Router)
 │   │   ├── src/
 │   │   │   ├── app/           # 8 product routes (/, /prescriptions, /prescriptions/[id],
 │   │   │   │                  # /patients, /patients/[id], /reminders, /audit, /staff)
-│   │   │   ├── components/    # Workstation UI components (OcrViewer, CandidateCard, GateStatusBar)
+│   │   │   ├── components/    # Workstation UI components (OcrViewer, CandidateCard, GateStatusBar, modals)
 │   │   │   ├── lib/           # Typed API client (api.ts) and span highlighter (span-highlighter.ts)
-│   │   │   └── tests/         # 4 Jest / RTL suites (10 tests, 100% passing)
+│   │   │   └── tests/         # 10 Jest / RTL suites (44 tests, 100% passing)
 │   │   └── tailwind.config.js # Light Health-Tech design tokens
 │   │
 │   └── ocr-service/           # Python 3.11 microservice stub (Dockerfile, planned FastAPI EasyOCR)
@@ -234,6 +234,8 @@ c:\Users\thopa\PerscriptionSetu
 | `GET` | `/api/patients` | Outpatient directory listing. | Only active (non-deleted) patients returned. |
 | `GET` | `/api/patients/:id` | Patient clinical profile, meal times, and active regimens. | Returns custom meal times for reminder calculation. |
 | `DELETE` | `/api/patients/:id` | **DPDP Right-to-Erasure:** Redacts PII, deletes image keys, cancels reminders. | Halts all reminders (SI-10, SI-11), stops active medications, preserves audit trail (SI-14, D-031). |
+| `GET` | `/api/audit` | Clinical audit trail query with joins, filters, and summary metrics. | Read-only (SI-14). Parameterized queries. Zero-PHI logging (SI-16). |
+| `GET` | `/api/audit/:id` | Single clinical audit record with enriched context. | Read-only (SI-14). Returns 404 for unknown IDs. |
 | `GET` | `/health` | Basic service health probe. | Returns `{ status: 'ok' }`. |
 
 ### Auth & Safety-Critical Invariants (Never Change Casually)
@@ -302,11 +304,11 @@ c:\Users\thopa\PerscriptionSetu
   - `docs:` — Documentation or contract updates (e.g., `docs: record D-034 light health-tech direction`)
   - `wip:` — Work-in-progress checkpoint before session termination or token limit
 
-### Testing Approach
-- **Total Test Baseline:** **52 test suites, 615 tests (100% passing)** across the repository.
-- **Backend (`apps/api`):** 48 suites, 605 tests. Tests run via Jest with real Knex/PostgreSQL transactions, BullMQ mocks, and synthetic OCR providers.
+#### Testing Approach
+- **Total Test Baseline:** **62 test suites, 678 tests (100% passing)** across the repository.
+- **Backend (`apps/api`):** 52 suites, 634 tests. Tests run via Jest with real Knex/PostgreSQL transactions, BullMQ mocks, and synthetic OCR providers.
 - **Corpus Benchmark (`apps/api/tests/corpus/`):** 61 automated tests validating 28 synthetic outpatient prescriptions across 4 cohorts with zero real patient data.
-- **Frontend (`apps/dashboard`):** 4 suites, 10 tests covering UI components (`CandidateCard`, `GateStatusBar`, `PendingQueue`, `span-highlighter`).
+- **Frontend (`apps/dashboard`):** 10 suites, 44 tests covering UI components (`CandidateCard`, `GateStatusBar`, `PendingQueue`, `span-highlighter`, `CreatePatientModal`, `UploadPrescriptionModal`, `ActiveMedications`, `AuditPage`, `NavigationEntryPoints`, `AppSidebar`).
 
 ---
 
@@ -322,7 +324,7 @@ c:\Users\thopa\PerscriptionSetu
 
 ### Operational Limitations & Accepted Risks
 - **PostgreSQL → Redis Non-Atomic Delivery Window:**
-  - In `verifyPrescription()`, reminders are committed to PostgreSQL first and then enqueued into Redis BullMQ. If the server crashes in the exact millisecond between PostgreSQL commit and Redis enqueue, the reminder row remains in PostgreSQL with `status = 'pending'` but without a corresponding BullMQ job. An outbox pattern was intentionally deferred to avoid overbuilding in Phase 1 (accepted risk).
+   - In `verifyPrescription()`, reminders are committed to PostgreSQL first and then enqueued into Redis BullMQ. If the server crashes in the exact millisecond between PostgreSQL commit and Redis enqueue, the reminder row remains in PostgreSQL with `status = 'pending'` but without a corresponding BullMQ job. An outbox pattern was intentionally deferred to avoid overbuilding in Phase 1 (accepted risk).
 
 ### Open Safety Questions (OQ) Still To Be Addressed
 - **OQ-03:** OCR confidence threshold tuning (starting at 0.70; to be calibrated on expanded corpus).
@@ -348,5 +350,5 @@ c:\Users\thopa\PerscriptionSetu
 
 ## 9. Last Updated
 
-- **Date:** 2026-09-04
-- **Summary:** Established canonical `.stitch/SCREENS.md` (complete 43-screen inventory & route/state mappings) and `.stitch/DESIGN.md` (Light Health-Tech design system specifications per D-034). Updated `PROJECT_CONTEXT.md` references. Total repository baseline: 52 test suites, 615 tests (100% passing), 0 git commits.
+- **Date:** 2026-09-06
+- **Summary:** Step 8 — Clinical Audit Trail Integration COMPLETE. Implemented read-only `GET /api/audit` and `GET /api/audit/:id` with parameterized Knex joins on `medication_audit_events`, `medications`, `prescriptions`, `patients`, and `caregivers`. Wired `apps/dashboard/src/app/audit/page.tsx` with live metrics, search, event filtering, patient/prescription links, and before/after clinical field diffs (SI-14). Enforced SI-16 zero-PHI log stream discipline. Total repository verified baseline: **62 test suites, 678 tests (100% passing)**, Git baseline commit `9136382`.

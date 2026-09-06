@@ -37,6 +37,47 @@ export interface UploadPrescriptionResponse {
   unparsed_fragments: any[];
 }
 
+export interface AuditEventRecord {
+  id: string;
+  medication_id: string;
+  prescription_id: string | null;
+  patient_id: string | null;
+  patient_name: string;
+  drug_name: string;
+  event_type: 'parsed' | 'confirmed' | 'corrected' | 'rejected' | 'stopped' | 'superseded' | 'completed' | 'revised';
+  field_name: string | null;
+  old_value: any;
+  new_value: any;
+  actor_caregiver_id: string | null;
+  actor_name: string;
+  reason: string | null;
+  created_at: string;
+}
+
+export interface AuditSummaryMetrics {
+  total_events: number;
+  corrections_count: number;
+  stops_count: number;
+  rejections_count: number;
+  confirmations_count: number;
+  erasures_count: number;
+}
+
+export interface GetAuditEventsParams {
+  event_type?: string;
+  patient_id?: string;
+  medication_id?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface GetAuditEventsResponse {
+  events: AuditEventRecord[];
+  total: number;
+  summary: AuditSummaryMetrics;
+}
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 export class ApiClientError extends Error {
@@ -264,5 +305,29 @@ export const api = {
       method: 'DELETE',
       body: caregiverId ? JSON.stringify({ caregiver_id: caregiverId }) : undefined,
     });
+  },
+
+  /**
+   * Fetches paginated clinical audit trail events with summary metrics.
+   * Authoritative source: docs/API_CONTRACTS.md §13.8, SAFETY_INVARIANTS.md SI-14
+   */
+  async getAuditEvents(params?: GetAuditEventsParams): Promise<GetAuditEventsResponse> {
+    const query = new URLSearchParams();
+    if (params?.event_type && params.event_type !== 'all') query.set('event_type', params.event_type);
+    if (params?.patient_id) query.set('patient_id', params.patient_id);
+    if (params?.medication_id) query.set('medication_id', params.medication_id);
+    if (params?.search) query.set('search', params.search);
+    if (params?.limit !== undefined) query.set('limit', String(params.limit));
+    if (params?.offset !== undefined) query.set('offset', String(params.offset));
+
+    const qs = query.toString();
+    return request<GetAuditEventsResponse>(`/api/audit${qs ? `?${qs}` : ''}`);
+  },
+
+  /**
+   * Fetches single audit event by ID.
+   */
+  async getAuditEvent(id: string): Promise<{ event: AuditEventRecord }> {
+    return request<{ event: AuditEventRecord }>(`/api/audit/${id}`);
   },
 };

@@ -269,4 +269,157 @@ describe('Verification Actions API (Confirm, Correct, Reject, Verify)', () => {
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('INVALID_REQUEST');
   });
+
+  it('11. POST /api/medications/:id/confirm returns 422 PRESCRIPTION_ALREADY_VERIFIED when prescription is already verified', async () => {
+    const rawOcr = 'Tab Metformin 500mg 1 tab BD';
+    const saved = await savePrescriptionWithParseResult(db, testPatientId, testCaregiverId, rawOcr, parse(rawOcr));
+    const medId = saved.medications[0].id;
+
+    // Confirm and verify prescription
+    await request(app)
+      .post(`/api/medications/${medId}/confirm`)
+      .send({ verifier_caregiver_id: testCaregiverId });
+
+    await request(app)
+      .post(`/api/prescriptions/${saved.prescription.id}/verify`)
+      .send({ verifier_caregiver_id: testCaregiverId });
+
+    // Attempt post-verification confirm
+    const postVerifyRes = await request(app)
+      .post(`/api/medications/${medId}/confirm`)
+      .send({ verifier_caregiver_id: testCaregiverId });
+
+    expect(postVerifyRes.status).toBe(422);
+    expect(postVerifyRes.body.error.code).toBe('PRESCRIPTION_ALREADY_VERIFIED');
+    expect(postVerifyRes.body.error.message).toContain('already been verified');
+  });
+
+  it('12. POST /api/medications/:id/correct returns 422 CANNOT_EDIT_VERIFIED_MEDICATION when prescription is already verified (SI-12)', async () => {
+    const rawOcr = 'Tab Metformin 500mg 1 tab BD';
+    const saved = await savePrescriptionWithParseResult(db, testPatientId, testCaregiverId, rawOcr, parse(rawOcr));
+    const medId = saved.medications[0].id;
+
+    await request(app)
+      .post(`/api/medications/${medId}/confirm`)
+      .send({ verifier_caregiver_id: testCaregiverId });
+
+    await request(app)
+      .post(`/api/prescriptions/${saved.prescription.id}/verify`)
+      .send({ verifier_caregiver_id: testCaregiverId });
+
+    // Attempt post-verification correct
+    const postVerifyRes = await request(app)
+      .post(`/api/medications/${medId}/correct`)
+      .send({
+        verifier_caregiver_id: testCaregiverId,
+        corrections: { frequency_code: 'THRICE_DAILY', times_per_day: 3 },
+      });
+
+    expect(postVerifyRes.status).toBe(422);
+    expect(postVerifyRes.body.error.code).toBe('CANNOT_EDIT_VERIFIED_MEDICATION');
+    expect(postVerifyRes.body.error.message).toContain('SI-12');
+  });
+
+  it('13. POST /api/medications/:id/reject returns 422 CANNOT_REJECT_VERIFIED_MEDICATION when prescription is already verified', async () => {
+    const rawOcr = 'Tab Metformin 500mg 1 tab BD';
+    const saved = await savePrescriptionWithParseResult(db, testPatientId, testCaregiverId, rawOcr, parse(rawOcr));
+    const medId = saved.medications[0].id;
+
+    await request(app)
+      .post(`/api/medications/${medId}/confirm`)
+      .send({ verifier_caregiver_id: testCaregiverId });
+
+    await request(app)
+      .post(`/api/prescriptions/${saved.prescription.id}/verify`)
+      .send({ verifier_caregiver_id: testCaregiverId });
+
+    // Attempt post-verification reject
+    const postVerifyRes = await request(app)
+      .post(`/api/medications/${medId}/reject`)
+      .send({
+        verifier_caregiver_id: testCaregiverId,
+        reason: 'Post-verification rejection attempt',
+      });
+
+    expect(postVerifyRes.status).toBe(422);
+    expect(postVerifyRes.body.error.code).toBe('CANNOT_REJECT_VERIFIED_MEDICATION');
+    expect(postVerifyRes.body.error.message).toContain('already been verified');
+  });
+
+  it('14. POST /api/prescriptions/:id/verify returns 422 PRESCRIPTION_ALREADY_VERIFIED if prescription is already verified (regression invariance)', async () => {
+    const rawOcr = 'Tab Metformin 500mg 1 tab BD';
+    const saved = await savePrescriptionWithParseResult(db, testPatientId, testCaregiverId, rawOcr, parse(rawOcr));
+    const medId = saved.medications[0].id;
+
+    await request(app)
+      .post(`/api/medications/${medId}/confirm`)
+      .send({ verifier_caregiver_id: testCaregiverId });
+
+    const firstVerify = await request(app)
+      .post(`/api/prescriptions/${saved.prescription.id}/verify`)
+      .send({ verifier_caregiver_id: testCaregiverId });
+    expect(firstVerify.status).toBe(200);
+
+    // Second verify attempt
+    const secondVerify = await request(app)
+      .post(`/api/prescriptions/${saved.prescription.id}/verify`)
+      .send({ verifier_caregiver_id: testCaregiverId });
+
+    expect(secondVerify.status).toBe(422);
+    expect(secondVerify.body.error.code).toBe('PRESCRIPTION_ALREADY_VERIFIED');
+    expect(secondVerify.body.error.message).toContain('already been verified');
+  });
+
+  it('15. POST /api/medications/:id/stop operates independently on verified/active medication (SI-10, SI-11)', async () => {
+    const rawOcr = 'Tab Metformin 500mg 1 tab BD';
+    const saved = await savePrescriptionWithParseResult(db, testPatientId, testCaregiverId, rawOcr, parse(rawOcr));
+    const medId = saved.medications[0].id;
+
+    await request(app)
+      .post(`/api/medications/${medId}/confirm`)
+      .send({ verifier_caregiver_id: testCaregiverId });
+
+    await request(app)
+      .post(`/api/prescriptions/${saved.prescription.id}/verify`)
+      .send({ verifier_caregiver_id: testCaregiverId });
+
+    // Stop the active medication
+    const stopRes = await request(app)
+      .post(`/api/medications/${medId}/stop`)
+      .send({
+        caregiver_id: testCaregiverId,
+        reason: 'Patient reported adverse reaction',
+      });
+
+    expect(stopRes.status).toBe(200);
+    expect(stopRes.body.success).toBe(true);
+    expect(stopRes.body.lifecycle_state).toBe('stopped');
+
+    const medAfter = await db('medications').where({ id: medId }).first();
+    expect(medAfter.lifecycle_state).toBe('stopped');
+
+    // Confirm that pending reminders were cancelled (SI-11)
+    const remainingPending = await db('reminders')
+      .where({ medication_id: medId, status: 'pending' })
+      .count('* as count')
+      .first();
+    expect(Number(remainingPending?.count || 0)).toBe(0);
+  });
+
+  it('16. Lock hierarchy serializes concurrent operations without deadlock', async () => {
+    const rawOcr = 'Tab Metformin 500mg 1 tab BD';
+    const saved = await savePrescriptionWithParseResult(db, testPatientId, testCaregiverId, rawOcr, parse(rawOcr));
+    const medId = saved.medications[0].id;
+
+    // Concurrently trigger confirm and verify
+    const [confirmRes, verifyRes] = await Promise.all([
+      request(app).post(`/api/medications/${medId}/confirm`).send({ verifier_caregiver_id: testCaregiverId }),
+      request(app).post(`/api/prescriptions/${saved.prescription.id}/verify`).send({ verifier_caregiver_id: testCaregiverId }),
+    ]);
+
+    // Either confirm finishes first and verify succeeds, or verify evaluates gate first and rejects with 422
+    // In NEITHER case should an unhandled 500 or deadlock occur
+    expect([200, 422]).toContain(confirmRes.status);
+    expect([200, 422]).toContain(verifyRes.status);
+  });
 });

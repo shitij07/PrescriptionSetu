@@ -60,7 +60,12 @@ export function createMedicationsRouter(db: Knex): Router {
 
       const result = await confirmMedication(db, id, verifier_caregiver_id);
       return res.status(200).json(result);
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.code === 'PRESCRIPTION_ALREADY_VERIFIED') {
+        return res.status(422).json({
+          error: { code: 'PRESCRIPTION_ALREADY_VERIFIED', message: err.message },
+        });
+      }
       next(err);
     }
   });
@@ -113,7 +118,15 @@ export function createMedicationsRouter(db: Knex): Router {
 
       const result = await correctMedication(db, id, corrections, verifier_caregiver_id, reason);
       return res.status(200).json(result);
-    } catch (err) {
+    } catch (err: any) {
+      if (
+        err?.code === 'PRESCRIPTION_ALREADY_VERIFIED' ||
+        err?.code === 'CANNOT_EDIT_VERIFIED_MEDICATION'
+      ) {
+        return res.status(422).json({
+          error: { code: err.code, message: err.message },
+        });
+      }
       next(err);
     }
   });
@@ -154,7 +167,15 @@ export function createMedicationsRouter(db: Knex): Router {
 
       const result = await rejectMedication(db, id, reason, verifier_caregiver_id);
       return res.status(200).json(result);
-    } catch (err) {
+    } catch (err: any) {
+      if (
+        err?.code === 'PRESCRIPTION_ALREADY_VERIFIED' ||
+        err?.code === 'CANNOT_REJECT_VERIFIED_MEDICATION'
+      ) {
+        return res.status(422).json({
+          error: { code: err.code, message: err.message },
+        });
+      }
       next(err);
     }
   });

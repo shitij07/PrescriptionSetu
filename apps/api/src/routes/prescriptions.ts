@@ -148,6 +148,14 @@ export function createPrescriptionsRouter(
       const result = await verifyPrescription(db, id, verifier_caregiver_id);
       return res.status(200).json(result);
     } catch (err: any) {
+      if (err?.code === 'PRESCRIPTION_ALREADY_VERIFIED') {
+        return res.status(422).json({
+          error: {
+            code: 'PRESCRIPTION_ALREADY_VERIFIED',
+            message: err.message,
+          },
+        });
+      }
       if (err.message && err.message.includes('Cannot verify prescription')) {
         return res.status(422).json({
           error: {

@@ -980,18 +980,130 @@ request/response shape, confidence reporting, and the LLM-vision fallback thresh
 provisionally 0.70) are **not specified here**. Note that whatever confidence this boundary carries
 must not reach the parser (§3.4; D-021).
 
-### 13.2 Verification-view render contract — RESERVED
+### 13.2 Verification Actions & Lifecycle Protection API Contracts
 
-Named by `SAFETY_INVARIANTS.md` SI-05 and SI-15, and constrained in advance by dictionary §6: the
-view **must** render `matched_literal`, `canonical_expansion`, and `rule_id` together, and **must
-not** render the canonical expansion alone. Because `canonical_expansion` is not parser output
-(§5.4), this contract will have to state how it is resolved from `rule_id` + `dictionary_version`
-at render time. Marathi phrasing is `pending-native-review` throughout (**OQ-12**). **Not specified
-here.**
+**Endpoints:**
+- `POST /api/medications/:id/confirm`
+- `POST /api/medications/:id/correct`
+- `POST /api/medications/:id/reject`
+- `POST /api/prescriptions/:id/verify`
+- `POST /api/medications/:id/stop`
+
+**Purpose & Safety Invariants:**
+Manages the human-in-the-loop review of extracted prescription medication candidates (SI-01), the atomic execution of the Human Verification Gate (SI-01, SI-02, SI-03), and post-verification medication lifecycle termination (SI-10, SI-11, SI-12, SI-14).
+
+**Lock Acquisition Hierarchy (Concurrency & Deadlock Prevention):**
+Whenever both a prescription and its medication(s) are locked within a transaction, the lock order is strictly enforced:
+1. `prescriptions` row locked first (`FOR UPDATE`).
+2. `medications` row(s) locked second (`FOR UPDATE`).
+This prevents lock inversion deadlocks between concurrent verification (`verifyPrescription`) and candidate review mutations (`confirmMedication`, `correctMedication`, `rejectMedication`).
+
+**Pre-Verification Mutation Boundaries:**
+- `confirm`, `correct`, and `reject` are strictly pre-verification candidate operations.
+- They are valid **only** when the parent prescription is in `status = 'pending_verification'` and the medication's `lifecycle_state IS NULL`.
+- Once a prescription is verified, its medications cannot be confirmed, corrected, or rejected.
+- In compliance with **SI-12**, revisions to previously verified medications MUST NOT edit existing medication rows in place. Revisions require superseding records.
+- Post-verification cessation of a medication MUST use `POST /api/medications/:id/stop` (SI-10, SI-11), which transitions `lifecycle_state = 'stopped'` and atomically cancels pending reminders.
+
+**Request & Response Contracts:**
+
+#### 1. Confirm Medication (`POST /api/medications/:id/confirm`)
+- **Headers:** `Content-Type: application/json`
+- **Body:** `{ "verifier_caregiver_id": "UUID string (required)" }`
+- **Success (200 OK):** `{ "success": true, "medication_id": "UUID", "verification_status": "confirmed" }`
+- **Errors:**
+  - `400 Bad Request`: `{ "error": { "code": "INVALID_REQUEST", "message": "..." } }`
+  - `404 Not Found`: `{ "error": { "code": "RESOURCE_NOT_FOUND", "message": "Medication not found" } }`
+  - `422 Unprocessable Entity`:
+    - `code: "PRESCRIPTION_ALREADY_VERIFIED"`: Parent prescription is already verified or medication already has non-null lifecycle state.
+
+#### 2. Correct Medication (`POST /api/medications/:id/correct`)
+- **Headers:** `Content-Type: application/json`
+- **Body:**
+  ```json
+  {
+    "verifier_caregiver_id": "UUID string (required)",
+    "corrections": {
+      "drug_name": "string (optional)",
+      "frequency_code": "string (optional)",
+      "times_per_day": "number (optional)",
+      "timing_anchors": "string[] (optional)",
+      "dose_amount": "number | object (optional)",
+      "dose_unit": "string (optional)",
+      "dose_strength_value": "number (optional)",
+      "dose_strength_unit": "string (optional)",
+      "duration_value": "number (optional)",
+      "duration_unit": "string (optional)",
+      "duration_indefinite": "boolean (optional)",
+      "as_needed": "boolean (optional)",
+      "max_doses_per_day": "number (optional)",
+      "min_interval_hours": "number (optional)"
+    },
+    "reason": "string (optional, audited reason for correction)"
+  }
+  ```
+- **Success (200 OK):** `{ "success": true, "medication_id": "UUID", "verification_status": "corrected" }`
+- **Errors:**
+  - `400 Bad Request`: Invalid UUID or missing corrections object.
+  - `404 Not Found`: Medication not found.
+  - `422 Unprocessable Entity`:
+    - `code: "INVALID_CORRECTION_FIELD"`: Field not allowed for clinical modification.
+    - `code: "CANNOT_EDIT_VERIFIED_MEDICATION"`: Parent prescription is already verified or medication has non-null lifecycle state (SI-12).
+
+#### 3. Reject Medication (`POST /api/medications/:id/reject`)
+- **Headers:** `Content-Type: application/json`
+- **Body:** `{ "verifier_caregiver_id": "UUID string (required)", "reason": "string (required non-empty reason)" }`
+- **Success (200 OK):** `{ "success": true, "medication_id": "UUID", "verification_status": "rejected" }`
+- **Errors:**
+  - `400 Bad Request`: Invalid UUID or missing rejection reason.
+  - `404 Not Found`: Medication not found.
+  - `422 Unprocessable Entity`:
+    - `code: "CANNOT_REJECT_VERIFIED_MEDICATION"`: Parent prescription is already verified or medication has non-null lifecycle state. Use `POST /:id/stop` instead.
+
+#### 4. Verify Prescription (`POST /api/prescriptions/:id/verify`)
+- **Headers:** `Content-Type: application/json`
+- **Body:** `{ "verifier_caregiver_id": "UUID string (required)" }`
+- **Success (200 OK):**
+  ```json
+  {
+    "success": true,
+    "prescription_id": "UUID",
+    "prescription_status": "verified",
+    "activated_medication_count": 2,
+    "generated_reminders_count": 6
+  }
+  ```
+- **Errors:**
+  - `400 Bad Request`: Invalid UUID format.
+  - `404 Not Found`: Prescription not found.
+  - `422 Unprocessable Entity`:
+    - `code: "PRESCRIPTION_ALREADY_VERIFIED"`: Prescription has already passed verification.
+    - `code: "VERIFICATION_GATE_REJECTED"`: SI-01 Gate violation — one or more medications remain pending or rejected.
+
+#### 5. Stop Medication (`POST /api/medications/:id/stop`)
+- **Headers:** `Content-Type: application/json`
+- **Body:** `{ "caregiver_id": "UUID string (required)", "reason": "string (required non-empty stop reason)" }`
+- **Success (200 OK):**
+  ```json
+  {
+    "success": true,
+    "medication_id": "UUID",
+    "lifecycle_state": "stopped",
+    "cancelled_reminders_count": 3
+  }
+  ```
+- **Errors:**
+  - `400 Bad Request`: Invalid UUID or missing reason.
+  - `404 Not Found`: Medication not found.
+  - `422 Unprocessable Entity`:
+    - `code: "INVALID_LIFECYCLE_TRANSITION"`: Medication lifecycle state is not 'active'.
+
+**Verification-View Render Requirements (SI-04, SI-05, SI-15):**
+The verification workstation UI **must** render `matched_literal`, `canonical_expansion`, and `rule_id` together for every matched shorthand token, and **must not** render the canonical expansion in isolation. Shorthand provenance spans allow bi-directional inspection against the raw OCR text.
 
 ### 13.3 Prescription Ingestion API Contract (`POST /api/prescriptions/upload`)
 
-**Endpoint:** `POST /api/prescriptions/upload`  
+**Endpoint:** `POST /api/prescriptions/upload`
 **Purpose:** Ingests a prescription image, synthetic fixture, or direct shorthand text, executes OCR perception and deterministic shorthand parsing, and atomically stores pending records for clinical verification.
 
 **Rate Limiting:**
@@ -1122,7 +1234,7 @@ per-language templates with bounded, ordered variables, versus a single rendered
 
 ### 13.6 Patient Registration API Contract (`POST /api/patients`)
 
-**Endpoint:** `POST /api/patients`  
+**Endpoint:** `POST /api/patients`
 **Purpose:** Registers a new patient record in PrescriptionSetu for prescription triage, review, and automated WhatsApp reminder scheduling.
 
 **Headers:**
@@ -1190,7 +1302,7 @@ per-language templates with bounded, ordered variables, versus a single rendered
 
 ### 13.7 Patient Profile & Active Regimens Contract (`GET /api/patients/:id`)
 
-**Endpoint:** `GET /api/patients/:id`  
+**Endpoint:** `GET /api/patients/:id`
 **Purpose:** Retrieves patient clinical profile, demographics, meal-time anchor schedule, active prescription count, and deliverable active medication regimens.
 
 **Headers:**
@@ -1291,6 +1403,113 @@ per-language templates with bounded, ordered variables, versus a single rendered
 **Privacy & Logging (SI-16):**
 - In compliance with `SAFETY_INVARIANTS.md` SI-16, personal identifiable information and medication names are strictly forbidden from plaintext logs.
 - Structured application logs emit only: `{ action: 'patient_profile_retrieved', patient_id: id }`.
+
+### 13.8 Clinical Audit Trail Contract (`GET /api/audit` and `GET /api/audit/:id`)
+
+**Endpoints:**
+- `GET /api/audit`
+- `GET /api/audit/:id`
+
+**Purpose:**
+Retrieves an immutable, read-only audit log of clinical verification actions, field corrections with clinician reasons, regimen stops, DPDP right-to-erasure events, and initial parsing events without exposing PHI in application logs. Satisfies SI-14 traceability and SI-16 structured logging guarantees.
+
+#### 13.8.1 List Audit Events (`GET /api/audit`)
+
+**Headers:**
+- `Accept: application/json`
+
+**Query Parameters:**
+- `event_type`: Optional string. One of `'all'`, `'confirmed'`, `'corrected'`, `'rejected'`, `'stopped'`, `'parsed'`, `'erasure'`. Default is `'all'`.
+  - Special filter `'erasure'` queries `event_type = 'stopped' AND reason = 'PATIENT_ERASURE_REQUEST'` conforming to canonical DPDP erasure semantics.
+- `patient_id`: Optional UUID string. Filters events for a specific patient. Invalid UUID returns `400 Bad Request` with code `INVALID_PATIENT_ID`.
+- `medication_id`: Optional UUID string. Filters events for a specific medication. Invalid UUID returns `400 Bad Request` with code `INVALID_MEDICATION_ID`.
+- `search`: Optional string. Matches drug name or acting clinician/caregiver name (case-insensitive parameterized substring matching).
+- `limit`: Optional integer between 1 and 100 (default 50). Invalid format returns `400 Bad Request` with code `INVALID_LIMIT`.
+- `offset`: Optional non-negative integer (default 0). Invalid format returns `400 Bad Request` with code `INVALID_OFFSET`.
+
+**Responses:**
+- `200 OK`:
+  ```json
+  {
+    "events": [
+      {
+        "id": "e0b83e60-4ea2-40f4-8d48-3a9926a57e32",
+        "medication_id": "4b684949-a2e6-4fa2-be9d-58fbfa8fc6ad",
+        "prescription_id": "7d8d54de-d966-457f-a075-18aa3c34c2ba",
+        "patient_id": "de103cdf-a2c8-4381-823f-352c465ae365",
+        "patient_name": "Asha Suresh Patil",
+        "actor_caregiver_id": "b373cc47-9080-4957-a3e0-4699e4a17427",
+        "actor_name": "Dr. Ananya Patil",
+        "event_type": "corrected",
+        "field_name": "frequency_code",
+        "old_value": "THRICE_DAILY",
+        "new_value": "TWICE_DAILY",
+        "reason": "Doctor confirmed reduced frequency on outpatient follow-up note",
+        "drug_name": "Amoxicillin",
+        "created_at": "2026-09-06T05:30:00.000Z"
+      }
+    ],
+    "total": 1,
+    "summary": {
+      "total_events": 1,
+      "corrections_count": 1,
+      "stops_count": 0,
+      "rejections_count": 0,
+      "confirmations_count": 0,
+      "erasures_count": 0
+    }
+  }
+  ```
+- `400 Bad Request`:
+  ```json
+  {
+    "error": {
+      "code": "INVALID_EVENT_TYPE",
+      "message": "Invalid event_type filter. Must be one of: all, confirmed, corrected, rejected, stopped, parsed, erasure"
+    }
+  }
+  ```
+- `500 Internal Server Error`: Standard sanitized error envelope per SI-16.
+
+#### 13.8.2 Single Audit Event Record (`GET /api/audit/:id`)
+
+**Request Parameters:**
+- Path param: `id` (UUID string, required). Must conform to UUID format.
+
+**Responses:**
+- `200 OK`:
+  ```json
+  {
+    "event": {
+      "id": "e0b83e60-4ea2-40f4-8d48-3a9926a57e32",
+      "medication_id": "4b684949-a2e6-4fa2-be9d-58fbfa8fc6ad",
+      "prescription_id": "7d8d54de-d966-457f-a075-18aa3c34c2ba",
+      "patient_id": "de103cdf-a2c8-4381-823f-352c465ae365",
+      "patient_name": "Asha Suresh Patil",
+      "actor_caregiver_id": "b373cc47-9080-4957-a3e0-4699e4a17427",
+      "actor_name": "Dr. Ananya Patil",
+      "event_type": "corrected",
+      "field_name": "frequency_code",
+      "old_value": "THRICE_DAILY",
+      "new_value": "TWICE_DAILY",
+      "reason": "Doctor confirmed reduced frequency on outpatient follow-up note",
+      "drug_name": "Amoxicillin",
+      "created_at": "2026-09-06T05:30:00.000Z"
+    }
+  }
+  ```
+- `400 Bad Request`: `{ "error": { "code": "INVALID_AUDIT_EVENT_ID", "message": "A valid audit event UUID is required" } }`
+- `404 Not Found`: `{ "error": { "code": "AUDIT_EVENT_NOT_FOUND", "message": "Audit event not found" } }`
+- `500 Internal Server Error`: Standard sanitized error envelope per SI-16.
+
+**Audit Immutability & Safety Constraints (SI-14):**
+- The audit route is strictly read-only. Any HTTP mutation (`POST`, `PUT`, `PATCH`, `DELETE`) to `/api/audit` or `/api/audit/:id` returns `404 Not Found`.
+- All SQL queries use parameterized Knex bindings (zero string concatenation).
+- In DPDP erasure scenarios, patient PII is redacted (`full_name = '[DELETED_PATIENT]'`), but the historical audit event row in `medication_audit_events` remains permanently immutable for regulatory verification.
+
+**Privacy & Logging (SI-16):**
+- In strict adherence to SI-16, raw OCR text, prescription contents, drug names, patient names, and phone numbers are never emitted to log streams.
+- Structured application logs emit only: `{ action: 'audit_log_query', count: events.length }`.
 
 ---
 

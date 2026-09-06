@@ -355,10 +355,18 @@ export default function PatientDetailPage() {
                 {patient.active_medications.map((med) => {
                   const { effective_fields } = med;
 
+                  // Helper to strip trailing decimal zeroes from numeric values or strings
+                  const formatNumeric = (val: unknown): string | null => {
+                    if (val === null || val === undefined) return null;
+                    const num = typeof val === 'number' ? val : Number(val);
+                    return isNaN(num) ? String(val) : String(num);
+                  };
+
                   // Dose string
                   let doseStr = 'Not stated';
-                  if (effective_fields.dose_strength_value !== null) {
-                    doseStr = `${effective_fields.dose_strength_value}${effective_fields.dose_strength_unit || 'mg'}`;
+                  const formattedStrength = formatNumeric(effective_fields.dose_strength_value);
+                  if (formattedStrength !== null) {
+                    doseStr = `${formattedStrength}${effective_fields.dose_strength_unit || 'mg'}`;
                     if (effective_fields.dose_amount !== null) {
                       const amt =
                         typeof effective_fields.dose_amount === 'object' && 'value' in effective_fields.dose_amount
@@ -382,10 +390,11 @@ export default function PatientDetailPage() {
                     : 'Not stated';
 
                   // Duration string
+                  const formattedDur = formatNumeric(effective_fields.duration_value);
                   const durStr =
-                    effective_fields.duration_value !== null
-                      ? `${effective_fields.duration_value} ${effective_fields.duration_unit || 'day'}${
-                          effective_fields.duration_value === 1 ? '' : 's'
+                    formattedDur !== null
+                      ? `${formattedDur} ${effective_fields.duration_unit || 'day'}${
+                          Number(formattedDur) === 1 ? '' : 's'
                         }`
                       : effective_fields.duration_indefinite
                       ? 'Indefinite (Continuous)'
